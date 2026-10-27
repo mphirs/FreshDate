@@ -32,7 +32,11 @@ export default function Dashboard() {
     setProducts(data);
   };
 
-  useFocusEffect(useCallback(() => { load(); }, []));
+  useFocusEffect(
+    useCallback(() => {
+      load();
+    }, [])
+  );
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -120,13 +124,11 @@ export default function Dashboard() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      {/* Banner */}
       <View style={[styles.banner, { backgroundColor: colors.primary }]}>
         <Text style={styles.bannerTitle}>FreshDate</Text>
         <Text style={styles.bannerSubtitle}>Keep your goods fresh. Waste less.</Text>
       </View>
 
-      {/* Stats */}
       <View style={styles.statsRow}>
         <View style={[styles.statCard, { backgroundColor: colors.card }]}>
           <Text style={[styles.statNumber, { color: colors.primary }]}>{stats.total}</Text>
@@ -142,7 +144,6 @@ export default function Dashboard() {
         </View>
       </View>
 
-      {/* Action Buttons */}
       <View style={styles.actionRow}>
         <TouchableOpacity
           style={[styles.mainBtn, { backgroundColor: colors.primary }]}
@@ -161,7 +162,6 @@ export default function Dashboard() {
         </TouchableOpacity>
       </View>
 
-      {/* Product List */}
       <FlatList
         data={products}
         keyExtractor={(item) => item.id}
@@ -180,7 +180,7 @@ export default function Dashboard() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  banner: { paddingTop: 50, paddingBottom: 20, paddingHorizontal: 20 },
+  banner: { paddingTop: 50, paddingBottom: 30, paddingHorizontal: 20 },
   bannerTitle: { fontSize: 28, fontWeight: '800', color: '#fff' },
   bannerSubtitle: { fontSize: 14, color: '#dcfce7', marginTop: 4 },
   statsRow: {

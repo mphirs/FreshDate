@@ -33,7 +33,7 @@
       "expo-sharing",
       "expo-notifications",
       [
-  "expo-splash-screen",
+      "expo-splash-screen",
   {
     "image": "./assets/splash-icon.png",
     "imageWidth": 200,
