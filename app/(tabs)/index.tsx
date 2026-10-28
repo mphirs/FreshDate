@@ -1,3 +1,4 @@
+```tsx
 import React, { useCallback, useState } from 'react';
 import {
   View,
@@ -20,225 +21,463 @@ import {
 } from '../../lib/products';
 import { cancelNotification } from '../../lib/notifications';
 
+// FreshDate brand colours
+const BRAND = {
+  forest: '#143D2B',
+  green: '#239568',
+  mint: '#E5F5EB',
+  cream: '#F6F8F3',
+  teal: '#237E79',
+  tealLight: '#E1F3F1',
+  amber: '#D97706',
+  amberLight: '#FFF2D9',
+  red: '#D94F50',
+  redLight: '#FCE8E8',
+  blue: '#3478C5',
+  blueLight: '#E8F1FC',
+};
+
 export default function Dashboard() {
   const { colors } = useTheme();
   const router = useRouter();
+
   const [products, setProducts] = useState<Product[]>([]);
   const [refreshing, setRefreshing] = useState(false);
 
-  const load = async () => {
-    const data = await getProducts();
-    data.sort((a, b) => new Date(a.expiryAt).getTime() - new Date(b.expiryAt).getTime());
-    setProducts(data);
-  };
+  const load = useCallback(async () => {
+    try {
+      const data = await getProducts();
+
+      data.sort(
+        (a, b) =>
+          new Date(a.expiryAt).getTime() -
+          new Date(b.expiryAt).getTime()
+      );
+
+      setProducts(data);
+    } catch (error) {
+      console.error('Could not load products:', error);
+    }
+  }, []);
 
   useFocusEffect(
     useCallback(() => {
       load();
-    }, [])
+    }, [load])
   );
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await load();
-    setRefreshing(false);
+
+    try {
+      await load();
+    } finally {
+      setRefreshing(false);
+    }
   };
 
   const handleDelete = (product: Product) => {
-    Alert.alert('Delete Product', `Delete "${product.name}"?`, [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Delete',
-        style: 'destructive',
-        onPress: async () => {
-          await cancelNotification(product.notificationId);
-          await deleteProduct(product.id);
-          load();
+    Alert.alert(
+      'Delete Product',
+      `Are you sure you want to delete "${product.name}"?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await cancelNotification(product.notificationId);
+              await deleteProduct(product.id);
+              await load();
+            } catch (error) {
+              console.error('Could not delete product:', error);
+              Alert.alert(
+                'Unable to delete',
+                'The product could not be deleted. Please try again.'
+              );
+            }
+          },
         },
-      },
-    ]);
+      ]
+    );
   };
 
   const stats = {
     total: products.length,
-    expiring: products.filter((p) => getProductStatus(p.expiryAt) === 'expiring').length,
-    expired: products.filter((p) => getProductStatus(p.expiryAt) === 'expired').length,
+    expiring: products.filter(
+      (p) => getProductStatus(p.expiryAt) === 'expiring'
+    ).length,
+    expired: products.filter(
+      (p) => getProductStatus(p.expiryAt) === 'expired'
+    ).length,
   };
 
-  const statusColor = (status: string) => {
-    if (status === 'expired') return colors.danger;
-    if (status === 'expiring') return colors.warning;
-    return colors.success;
-  };
+  const freshCount = stats.total - stats.expiring - stats.expired;
 
-  const statusBg = (status: string) => {
-    if (status === 'expired') return colors.expired;
-    if (status === 'expiring') return colors.expiring;
-    return colors.ok;
+  const getStatusAppearance = (status: string) => {
+    if (status === 'expired') {
+      return {
+        label: 'Expired',
+        background: BRAND.redLight,
+        foreground: BRAND.red,
+        icon: 'alert-circle-outline' as const,
+      };
+    }
+
+    if (status === 'expiring') {
+      return {
+        label: 'Expiring soon',
+        background: BRAND.amberLight,
+        foreground: BRAND.amber,
+        icon: 'time-outline' as const,
+      };
+    }
+
+    return {
+      label: 'Fresh',
+      background: BRAND.mint,
+      foreground: BRAND.green,
+      icon: 'checkmark-circle-outline' as const,
+    };
   };
 
   const renderItem = ({ item }: { item: Product }) => {
     const status = getProductStatus(item.expiryAt);
+    const appearance = getStatusAppearance(status);
+
     return (
-      <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
-        <View style={styles.cardHeader}>
-          <Text style={[styles.productName, { color: colors.text }]} numberOfLines={1}>
-            {item.name}
-          </Text>
-          <View style={[styles.badge, { backgroundColor: statusBg(status) }]}>
-            <Text style={[styles.badgeText, { color: statusColor(status) }]}>
-              {status === 'expired' ? 'Expired' : status === 'expiring' ? 'Expiring Soon' : 'OK'}
+      <View
+        style={[
+          styles.productCard,
+          {
+            backgroundColor: colors.card,
+            borderColor: colors.border,
+          },
+        ]}
+      >
+        <View style={styles.productTop}>
+          <View
+            style={[
+              styles.productIcon,
+              { backgroundColor: appearance.background },
+            ]}
+          >
+            <Ionicons
+              name="cube-outline"
+              size={23}
+              color={appearance.foreground}
+            />
+          </View>
+
+          <View style={styles.productInfo}>
+            <Text
+              style={[styles.productName, { color: colors.text }]}
+              numberOfLines={1}
+            >
+              {item.name}
+            </Text>
+
+            <View style={styles.categoryLine}>
+              <Ionicons
+                name="pricetag-outline"
+                size={13}
+                color={colors.textSecondary}
+              />
+              <Text
+                style={[
+                  styles.categoryText,
+                  { color: colors.textSecondary },
+                ]}
+                numberOfLines={1}
+              >
+                {item.category || 'General'}
+              </Text>
+            </View>
+          </View>
+
+          <View
+            style={[
+              styles.statusBadge,
+              { backgroundColor: appearance.background },
+            ]}
+          >
+            <Text
+              style={[
+                styles.statusText,
+                { color: appearance.foreground },
+              ]}
+            >
+              {appearance.label}
             </Text>
           </View>
         </View>
 
-        <Text style={{ color: colors.textSecondary }}>Category: {item.category}</Text>
-        <Text style={{ color: colors.textSecondary }}>Quantity: {item.quantity}</Text>
-        {item.barcode ? (
-          <Text style={{ color: colors.textSecondary, fontSize: 12 }}>Code: {item.barcode}</Text>
-        ) : null}
-        <Text style={{ color: colors.text, fontWeight: '600', marginTop: 4 }}>
-          Expiry: {formatDateTime(item.expiryAt)}
-        </Text>
+        <View
+          style={[
+            styles.productDivider,
+            { backgroundColor: colors.border },
+          ]}
+        />
 
-        <View style={styles.actions}>
+        <View style={styles.detailRow}>
+          <View style={styles.detailItem}>
+            <Ionicons
+              name="layers-outline"
+              size={16}
+              color={colors.textSecondary}
+            />
+            <Text
+              style={[styles.detailText, { color: colors.textSecondary }]}
+              numberOfLines={1}
+            >
+              Qty: {item.quantity}
+            </Text>
+          </View>
+
+          <View style={styles.detailItem}>
+            <Ionicons
+              name="calendar-outline"
+              size={16}
+              color={appearance.foreground}
+            />
+            <Text
+              style={[styles.detailText, { color: colors.text }]}
+              numberOfLines={2}
+            >
+              {formatDateTime(item.expiryAt)}
+            </Text>
+          </View>
+        </View>
+
+        {item.barcode ? (
+          <View style={styles.barcodeLine}>
+            <Ionicons
+              name="barcode-outline"
+              size={15}
+              color={colors.textSecondary}
+            />
+            <Text
+              style={[
+                styles.barcodeText,
+                { color: colors.textSecondary },
+              ]}
+              numberOfLines={1}
+            >
+              {item.barcode}
+            </Text>
+          </View>
+        ) : null}
+
+        <View style={styles.productActions}>
           <TouchableOpacity
-            style={[styles.btn, { backgroundColor: colors.primary }]}
-            onPress={() => router.push({ pathname: '/add-product', params: { id: item.id } })}
+            style={styles.editButton}
+            activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityLabel={`Edit ${item.name}`}
+            onPress={() =>
+              router.push({
+                pathname: '/add-product',
+                params: { id: item.id },
+              })
+            }
           >
-            <Ionicons name="create-outline" size={16} color="#fff" />
-            <Text style={styles.btnText}>Edit</Text>
+            <Ionicons name="create-outline" size={17} color="#FFFFFF" />
+            <Text style={styles.editButtonText}>Edit product</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={[styles.btn, { backgroundColor: colors.danger }]}
+            style={[
+              styles.deleteButton,
+              { borderColor: colors.border },
+            ]}
+            activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel={`Delete ${item.name}`}
             onPress={() => handleDelete(item)}
           >
-            <Ionicons name="trash-outline" size={16} color="#fff" />
-            <Text style={styles.btnText}>Delete</Text>
+            <Ionicons name="trash-outline" size={17} color={BRAND.red} />
           </TouchableOpacity>
         </View>
       </View>
     );
   };
 
-  return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <View style={[styles.banner, { backgroundColor: colors.primary }]}>
-        <Text style={styles.bannerTitle}>FreshDate</Text>
-        <Text style={styles.bannerSubtitle}>Keep your goods fresh. Waste less.</Text>
-      </View>
+  const DashboardHeader = () => (
+    <View>
+      {/* Welcome banner */}
+      <View style={styles.hero}>
+        <View style={styles.heroTop}>
+          <View style={styles.brandLockup}>
+            <View style={styles.logoBox}>
+              <Ionicons name="leaf" size={25} color={BRAND.forest} />
+            </View>
 
-      <View style={styles.statsRow}>
-        <View style={[styles.statCard, { backgroundColor: colors.card }]}>
-          <Text style={[styles.statNumber, { color: colors.primary }]}>{stats.total}</Text>
-          <Text style={{ color: colors.textSecondary, fontSize: 12 }}>All Items</Text>
+            <View>
+              <Text style={styles.brandName}>FreshDate</Text>
+              <Text style={styles.brandTagline}>SMART FRESHNESS TRACKING</Text>
+            </View>
+          </View>
+
+          <View style={styles.heroBadge}>
+            <Ionicons
+              name="shield-checkmark-outline"
+              size={15}
+              color="#D7F5E1"
+            />
+            <Text style={styles.heroBadgeText}>Stay organised</Text>
+          </View>
         </View>
-        <View style={[styles.statCard, { backgroundColor: colors.card }]}>
-          <Text style={[styles.statNumber, { color: colors.warning }]}>{stats.expiring}</Text>
-          <Text style={{ color: colors.textSecondary, fontSize: 12 }}>Expiring Soon</Text>
-        </View>
-        <View style={[styles.statCard, { backgroundColor: colors.card }]}>
-          <Text style={[styles.statNumber, { color: colors.danger }]}>{stats.expired}</Text>
-          <Text style={{ color: colors.textSecondary, fontSize: 12 }}>Expired</Text>
-        </View>
-      </View>
 
-      <View style={styles.actionRow}>
-        <TouchableOpacity
-          style={[styles.mainBtn, { backgroundColor: colors.primary }]}
-          onPress={() => router.push('/add-product')}
-        >
-          <Ionicons name="add-circle" size={22} color="#fff" />
-          <Text style={styles.mainBtnText}>Add Item</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[styles.mainBtn, { backgroundColor: '#0ea5e9' }]}
-          onPress={() => router.push('/scan')}
-        >
-          <Ionicons name="qr-code" size={22} color="#fff" />
-          <Text style={styles.mainBtnText}>Scan QR / Code</Text>
-        </TouchableOpacity>
-      </View>
-
-      <FlatList
-        data={products}
-        keyExtractor={(item) => item.id}
-        renderItem={renderItem}
-        contentContainerStyle={{ paddingBottom: 40 }}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
-        ListEmptyComponent={
-          <Text style={{ textAlign: 'center', marginTop: 40, color: colors.textSecondary }}>
-            No products yet.{'\n'}Tap “Add Item” or “Scan QR / Code”.
+        <View style={styles.welcomeSection}>
+          <Text style={styles.welcomeEyebrow}>YOUR FRESHNESS OVERVIEW</Text>
+          <Text style={styles.heroTitle}>Less waste.{'\n'}More freshness.</Text>
+          <Text style={styles.heroSubtitle}>
+            Keep track of your products and know what needs attention.
           </Text>
-        }
-      />
-    </View>
-  );
-}
+        </View>
 
-const styles = StyleSheet.create({
-  container: { flex: 1 },
-  banner: { paddingTop: 50, paddingBottom: 30, paddingHorizontal: 20 },
-  bannerTitle: { fontSize: 28, fontWeight: '800', color: '#fff' },
-  bannerSubtitle: { fontSize: 14, color: '#dcfce7', marginTop: 4 },
-  statsRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    marginTop: -20,
-    marginBottom: 12,
-  },
-  statCard: {
-    flex: 1,
-    marginHorizontal: 4,
-    borderRadius: 12,
-    padding: 14,
-    alignItems: 'center',
-    elevation: 2,
-  },
-  statNumber: { fontSize: 22, fontWeight: '800' },
-  actionRow: {
-    flexDirection: 'row',
-    gap: 10,
-    paddingHorizontal: 16,
-    marginBottom: 10,
-  },
-  mainBtn: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 14,
-    borderRadius: 12,
-    gap: 8,
-  },
-  mainBtnText: { color: '#fff', fontWeight: '700', fontSize: 15 },
-  card: {
-    marginHorizontal: 16,
-    marginVertical: 6,
-    padding: 16,
-    borderRadius: 14,
-    borderWidth: 1,
-  },
-  cardHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 6,
-  },
-  productName: { fontSize: 17, fontWeight: '700', flex: 1, marginRight: 8 },
-  badge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20 },
-  badgeText: { fontSize: 12, fontWeight: '700' },
-  actions: { flexDirection: 'row', gap: 10, marginTop: 12 },
-  btn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 8,
-  },
-  btnText: { color: '#fff', fontWeight: '600', fontSize: 13 },
-});
+        <View style={styles.heroBottom}>
+          <View style={styles.todayLabel}>
+            <Ionicons
+              name="calendar-clear-outline"
+              size={16}
+              color="#D7F5E1"
+            />
+            <Text style={styles.todayText}>
+              {new Date().toLocaleDateString(undefined, {
+                weekday: 'short',
+                day: 'numeric',
+                month: 'short',
+                year: 'numeric',
+              })}
+            </Text>
+          </View>
+
+          <Ionicons
+            name="leaf-outline"
+            size={46}
+            color="rgba(255,255,255,0.16)"
+          />
+        </View>
+      </View>
+
+      {/* Summary */}
+      <View style={styles.sectionHeading}>
+        <View>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>
+            Your inventory
+          </Text>
+          <Text
+            style={[
+              styles.sectionSubtitle,
+              { color: colors.textSecondary },
+            ]}
+          >
+            A quick look at your products
+          </Text>
+        </View>
+
+        <View style={styles.liveIndicator}>
+          <View style={styles.liveDot} />
+          <Text style={styles.liveText}>OVERVIEW</Text>
+        </View>
+      </View>
+
+      <View style={styles.statsGrid}>
+        <View
+          style={[
+            styles.statCard,
+            { backgroundColor: colors.card, borderColor: colors.border },
+          ]}
+        >
+          <View
+            style={[
+              styles.statIcon,
+              { backgroundColor: BRAND.blueLight },
+            ]}
+          >
+            <Ionicons
+              name="cube-outline"
+              size={19}
+              color={BRAND.blue}
+            />
+          </View>
+          <Text style={[styles.statNumber, { color: colors.text }]}>
+            {stats.total}
+          </Text>
+          <Text style={[styles.statLabel, { color: colors.textSecondary }]}>
+            Total items
+          </Text>
+        </View>
+
+        <View
+          style={[
+            styles.statCard,
+            { backgroundColor: colors.card, borderColor: colors.border },
+          ]}
+        >
+          <View
+            style={[
+              styles.statIcon,
+              { backgroundColor: BRAND.amberLight },
+            ]}
+          >
+            <Ionicons
+              name="time-outline"
+              size={19}
+              color={BRAND.amber}
+            />
+          </View>
+          <Text style={[styles.statNumber, { color: BRAND.amber }]}>
+            {stats.expiring}
+          </Text>
+          <Text style={[styles.statLabel, { color: colors.textSecondary }]}>
+            Expiring soon
+          </Text>
+        </View>
+
+        <View
+          style={[
+            styles.statCard,
+            { backgroundColor: colors.card, borderColor: colors.border },
+          ]}
+        >
+          <View
+            style={[
+              styles.statIcon,
+              { backgroundColor: BRAND.redLight },
+            ]}
+          >
+            <Ionicons
+              name="alert-circle-outline"
+              size={19}
+              color={BRAND.red}
+            />
+          </View>
+          <Text style={[styles.statNumber, { color: BRAND.red }]}>
+            {stats.expired}
+          </Text>
+          <Text style={[styles.statLabel, { color: colors.textSecondary }]}>
+            Expired
+          </Text>
+        </View>
+      </View>
+
+      {/* Freshness insight */}
+      <View
+        style={[
+          styles.insightCard,
+          {
+            backgroundColor: colors.card,
+            borderColor: colors.border,
+          },
+        ]}
+      >
+        <View style={styles.insightIcon}>
+          <Ionicons name="checkmark-circle" size={23} color={BRAND.green} />
+        </View>
+
+        <View style={styles.insightContent}>
+          <Text style={[styles.insightTitle, { color: colors.text }]}>
+            {freshCount} {freshCount === 1 ? 'item is' : 'items
